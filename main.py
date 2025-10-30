@@ -12,6 +12,8 @@ import time
 import argparse
 import sys
 from pathlib import Path
+import urllib.request
+import urllib.error
 
 # Add src directory to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
@@ -35,7 +37,7 @@ class PedestrianNavigationSystem:
         Initialize the navigation system
         
         Args:
-            video_source: Camera index or path to video file
+            video_source: Camera index, path to video file, or HTTP stream URL
             confidence: Detection confidence threshold (0-1)
             debug: Enable debug mode with extra visualizations
         """
@@ -47,10 +49,18 @@ class PedestrianNavigationSystem:
         self.video_source = video_source
         self.confidence = confidence
         self.debug = debug
+        self.is_http_stream = isinstance(video_source, str) and video_source.startswith('http')
+        self.reconnect_attempts = 0
+        self.max_reconnect_attempts = 5
+        self.reconnect_delay = 2  # seconds
         
-        # Initialize video capture
+        # Initialize video capture with retry logic for HTTP streams
         print(f"\n📹 Initializing camera/video source: {video_source}")
-        self.cap = cv2.VideoCapture(video_source)
+        if self.is_http_stream:
+            print("   Detected HTTP stream - enabling reconnection logic")
+            self._test_http_stream()
+        
+        self.cap = self._create_video_capture()
         
         if not self.cap.isOpened():
             raise RuntimeError(f"Failed to open video source: {video_source}")
@@ -80,6 +90,56 @@ class PedestrianNavigationSystem:
         print("\n✅ System initialized successfully!")
         print("\nStarting detection loop...")
         print("-"*60)
+    
+    def _test_http_stream(self):
+        """Test if HTTP stream is accessible before starting"""
+        try:
+            print("   Testing HTTP stream connectivity...")
+            req = urllib.request.Request(self.video_source)
+            response = urllib.request.urlopen(req, timeout=5)
+            print(f"   ✅ HTTP stream accessible (status: {response.status})")
+        except urllib.error.URLError as e:
+            print(f"   ⚠️  Warning: Could not verify stream accessibility: {e}")
+            print(f"   Will attempt to connect anyway...")
+        except Exception as e:
+            print(f"   ⚠️  Warning: Stream test failed: {e}")
+    
+    def _create_video_capture(self):
+        """Create video capture object with proper configuration"""
+        cap = cv2.VideoCapture(self.video_source)
+        
+        # Configure buffering for HTTP streams
+        if self.is_http_stream:
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize latency
+        
+        return cap
+    
+    def _reconnect_stream(self):
+        """Attempt to reconnect to the video stream"""
+        if self.reconnect_attempts >= self.max_reconnect_attempts:
+            print(f"   ❌ Max reconnection attempts ({self.max_reconnect_attempts}) reached")
+            return False
+        
+        self.reconnect_attempts += 1
+        print(f"\n🔄 Connection lost. Reconnecting... (Attempt {self.reconnect_attempts}/{self.max_reconnect_attempts})")
+        
+        # Release old capture
+        if self.cap is not None:
+            self.cap.release()
+        
+        # Wait before reconnecting
+        time.sleep(self.reconnect_delay)
+        
+        # Try to reconnect
+        self.cap = self._create_video_capture()
+        
+        if self.cap.isOpened():
+            print("   ✅ Reconnected successfully!")
+            self.reconnect_attempts = 0  # Reset counter on success
+            return True
+        else:
+            print(f"   ❌ Reconnection attempt {self.reconnect_attempts} failed")
+            return False
     
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -186,8 +246,16 @@ class PedestrianNavigationSystem:
                     ret, frame = self.cap.read()
                     
                     if not ret:
-                        print("\n⚠️  End of video stream")
-                        break
+                        # Handle disconnection for HTTP streams
+                        if self.is_http_stream:
+                            if self._reconnect_stream():
+                                continue  # Try reading again
+                            else:
+                                print("\n❌ Failed to reconnect to stream")
+                                break
+                        else:
+                            print("\n⚠️  End of video stream")
+                            break
                     
                     # Process frame
                     output_frame = self.process_frame(frame)
@@ -270,6 +338,9 @@ Examples:
   # Use webcam (default)
   python main.py
   
+  # Use ESP32-CAM HTTP stream
+  python main.py --source http://192.168.1.100:81/stream
+  
   # Use video file
   python main.py --source path/to/video.mp4
   
@@ -284,8 +355,8 @@ Examples:
     parser.add_argument(
         '--source', '-s',
         type=str,
-        default=0,
-        help='Video source: 0 for webcam, or path to video file (default: 0)'
+        default='0',
+        help='Video source: 0 for webcam, path to video file, or HTTP stream URL (e.g., http://192.168.1.100:81/stream)'
     )
     
     parser.add_argument(
