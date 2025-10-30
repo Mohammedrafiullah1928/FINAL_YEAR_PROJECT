@@ -24,6 +24,37 @@
 
 ---
 
+## 📡 ESP32-CAM Wireless Mode (NEW!)
+
+Use an **ESP32-CAM module** for wireless video streaming:
+
+### Quick Setup:
+1. **Setup ESP32-CAM** (see `esp32_cam/README.md` for full instructions):
+   - Upload firmware using Arduino IDE
+   - Configure WiFi credentials
+   - Note the IP address shown in Serial Monitor
+
+2. **Test the stream:**
+   ```powershell
+   python test_esp32_stream.py http://192.168.1.100:81/stream
+   ```
+   (Replace `192.168.1.100` with your ESP32-CAM's IP)
+
+3. **Run with ESP32-CAM:**
+   ```powershell
+   python main.py --source http://192.168.1.100:81/stream
+   ```
+
+**Benefits:**
+- ✅ Wireless/portable operation
+- ✅ Low cost ($10-15)
+- ✅ Automatic reconnection on disconnect
+- ✅ Perfect for wearable/mobile deployment
+
+**See `esp32_integration.md` for complete guide and performance tuning.**
+
+---
+
 ## 🎮 Controls
 
 - **Q** - Quit

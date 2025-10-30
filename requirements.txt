@@ -1,6 +1,6 @@
 # Core AI/ML Libraries
 ultralytics>=8.0.0  # YOLOv8
-opencv-python>=4.8.0
+opencv-python>=4.8.0  # Includes HTTP/MJPEG stream support for ESP32-CAM
 numpy>=1.24.0
 torch>=2.0.0
 torchvision>=0.15.0
