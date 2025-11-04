@@ -1,0 +1,4 @@
+﻿# Simple script - use the Colab link instead
+# Go to: https://colab.research.google.com/
+# Then: File > New notebook
+# Copy the code from FREE_CLOUD_TRAINING.md
