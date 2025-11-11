@@ -115,7 +115,16 @@ class HazardDetector:
     }
     
     def __init__(self, model_name='yolov8n.pt'):
-        print(f"Loading YOLOv8 model: {model_name}")
+        # Try custom model first, fallback to generic
+        import os
+        custom_model = 'models/custom_pothole.pt'
+        if os.path.exists(custom_model):
+            model_name = custom_model
+            print(f"Loading CUSTOM YOLOv8 model: {model_name} (with pothole detection!)")
+        else:
+            print(f"Loading GENERIC YOLOv8 model: {model_name} (no pothole detection)")
+            print(f"   To add pothole detection, place custom_pothole.pt in models/ folder")
+        
         self.model = YOLO(model_name)
         print("✅ Model loaded")
     
