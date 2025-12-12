@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pedestrian Navigation - Live Obstacle Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-width: 300px;
+        }
+        
+        .control-panel h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .stat:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: #666;
+        }
+        
+        .stat-value {
+            font-weight: bold;
+            color: #2196F3;
+        }
+        
+        /* Filter Controls */
+        .filter-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid #eee;
+        }
+        
+        .filter-section h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #555;
+        }
+        
+        .filter-option {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        
+        .filter-option input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        
+        .filter-option label {
+            font-size: 13px;
+            color: #666;
+            cursor: pointer;
+        }
+        
+        /* Buttons */
+        .btn {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #1976D2;
+        }
+        
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #45a049;
+        }
+        
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+        
+        /* Status Indicator */
+        .status {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+        
+        .status.connected {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        .status.disconnected {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        .status.connected .status-dot {
+            background: #4CAF50;
+        }
+        
+        .status.disconnected .status-dot {
+            background: #f44336;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Notification Toast */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #323232;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            display: none;
+            animation: slideDown 0.3s ease-out;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+        
+        .toast.show {
+            display: block;
+        }
+        
+        .toast.danger {
+            background: #f44336;
+        }
+        
+        .toast.success {
+            background: #4CAF50;
+        }
+        
+        .toast.warning {
+            background: #ff9800;
+        }
+        
+        /* Custom Marker Styles */
+        .obstacle-marker {
+            text-align: center;
+            font-size: 24px;
+        }
+        
+        .marker-pothole {
+            color: #f44336;
+        }
+        
+        .marker-crack {
+            color: #ff9800;
+        }
+        
+        .marker-obstacle {
+            color: #9c27b0;
+        }
+        
+        .marker-person {
+            color: #2196F3;
+        }
+        
+        /* Legend */
+        .legend {
+            position: absolute;
+            bottom: 30px;
+            left: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        
+        .legend h4 {
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        
+        .legend-icon {
+            margin-right: 8px;
+            font-size: 16px;
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #2196F3;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Map Container -->
+    <div id="map"></div>
+    
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <h2><i class="fas fa-map-marked-alt"></i> Control Panel</h2>
+        
+        <!-- Connection Status -->
+        <div id="status" class="status disconnected">
+            <span class="status-dot"></span>
+            <span id="status-text">Connecting...</span>
+        </div>
+        
+        <!-- Statistics -->
+        <div class="stat">
+            <span class="stat-label">Total Obstacles:</span>
+            <span class="stat-value" id="total-obstacles">0</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Nearby (500m):</span>
+            <span class="stat-value" id="nearby-obstacles">0</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Active Users:</span>
+            <span class="stat-value" id="active-users">0</span>
+        </div>
+        
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <h3><i class="fas fa-filter"></i> Filter Obstacles</h3>
+            <div class="filter-option">
+                <input type="checkbox" id="filter-pothole" checked>
+                <label for="filter-pothole">Potholes</label>
+            </div>
+            <div class="filter-option">
+                <input type="checkbox" id="filter-crack" checked>
+                <label for="filter-crack">Cracks</label>
+            </div>
+            <div class="filter-option">
+                <input type="checkbox" id="filter-person" checked>
+                <label for="filter-person">Pedestrians</label>
+            </div>
+            <div class="filter-option">
+                <input type="checkbox" id="filter-obstacle" checked>
+                <label for="filter-obstacle">Other Obstacles</label>
+            </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <button class="btn btn-primary" onclick="centerOnUser()">
+            <i class="fas fa-crosshairs"></i> Center on Me
+        </button>
+        <button class="btn btn-success" onclick="refreshObstacles()">
+            <i class="fas fa-sync-alt"></i> Refresh Data
+        </button>
+        <button class="btn btn-primary" onclick="window.location.href='/dashboard'">
+            <i class="fas fa-chart-bar"></i> View Dashboard
+        </button>
+    </div>
+    
+    <!-- Legend -->
+    <div class="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <i class="fas fa-circle marker-pothole legend-icon"></i>
+            <span>Pothole</span>
+        </div>
+        <div class="legend-item">
+            <i class="fas fa-circle marker-crack legend-icon"></i>
+            <span>Crack</span>
+        </div>
+        <div class="legend-item">
+            <i class="fas fa-circle marker-obstacle legend-icon"></i>
+            <span>Obstacle</span>
+        </div>
+        <div class="legend-item">
+            <i class="fas fa-circle marker-person legend-icon"></i>
+            <span>Pedestrian</span>
+        </div>
+        <div class="legend-item">
+            <i class="fas fa-map-marker-alt" style="color: #4CAF50;"></i>
+            <span>Your Location</span>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+    
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    
+    <script>
+        // Initialize map
+        let map = L.map('map').setView([17.385044, 78.486671], 13); // Default: Hyderabad
+        
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // Storage
+        let markers = [];
+        let userMarker = null;
+        let userLocation = null;
+        let socket = null;
+        
+        // Initialize WebSocket connection
+        function initializeWebSocket() {
+            socket = io.connect('http://' + document.domain + ':' + location.port);
+            
+            socket.on('connect', function() {
+                updateStatus(true);
+                showToast('Connected to server', 'success');
+                
+                // Request location if available
+                if ('geolocation' in navigator) {
+                    navigator.geolocation.getCurrentPosition(updateUserLocation);
+                    navigator.geolocation.watchPosition(updateUserLocation);
+                }
+            });
+            
+            socket.on('disconnect', function() {
+                updateStatus(false);
+                showToast('Disconnected from server', 'danger');
+            });
+            
+            socket.on('new_obstacle', function(obstacle) {
+                addObstacleMarker(obstacle);
+                showToast(`New ${obstacle.type} detected nearby!`, 'warning');
+                updateStats();
+            });
+            
+            socket.on('nearby_obstacles', function(data) {
+                document.getElementById('nearby-obstacles').textContent = data.count;
+            });
+        }
+        
+        // Update user location
+        function updateUserLocation(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            
+            userLocation = {latitude: lat, longitude: lon};
+            
+            // Update or create user marker
+            if (userMarker) {
+                userMarker.setLatLng([lat, lon]);
+            } else {
+                userMarker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        html: '<i class="fas fa-street-view" style="color: #4CAF50; font-size: 32px;"></i>',
+                        className: 'user-marker',
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 32]
+                    })
+                }).addTo(map);
+                
+                userMarker.bindPopup('<b>Your Location</b>').openPopup();
+                map.setView([lat, lon], 15);
+            }
+            
+            // Send location to server
+            if (socket && socket.connected) {
+                socket.emit('update_location', {latitude: lat, longitude: lon});
+            }
+        }
+        
+        // Add obstacle marker to map
+        function addObstacleMarker(obstacle) {
+            const iconMap = {
+                'pothole': {icon: 'fa-circle', color: '#f44336'},
+                'crack': {icon: 'fa-circle', color: '#ff9800'},
+                'person': {icon: 'fa-circle', color: '#2196F3'},
+                'obstacle': {icon: 'fa-circle', color: '#9c27b0'}
+            };
+            
+            const obstacleType = obstacle.type.toLowerCase();
+            const iconConfig = iconMap[obstacleType] || iconMap['obstacle'];
+            
+            const marker = L.marker([obstacle.latitude, obstacle.longitude], {
+                icon: L.divIcon({
+                    html: `<i class="fas ${iconConfig.icon}" style="color: ${iconConfig.color}; font-size: 20px;"></i>`,
+                    className: 'obstacle-marker',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                })
+            }).addTo(map);
+            
+            // Popup content
+            const popupContent = `
+                <div style="min-width: 200px;">
+                    <h3 style="margin-bottom: 10px; color: ${iconConfig.color};">
+                        ${obstacle.type.toUpperCase()}
+                    </h3>
+                    <p><strong>Confidence:</strong> ${(obstacle.confidence * 100).toFixed(1)}%</p>
+                    <p><strong>Severity:</strong> ${obstacle.severity}</p>
+                    <p><strong>Time:</strong> ${new Date(obstacle.timestamp).toLocaleString()}</p>
+                    <p><strong>Location:</strong> ${obstacle.latitude.toFixed(6)}, ${obstacle.longitude.toFixed(6)}</p>
+                    ${obstacle.distance_km ? `<p><strong>Distance:</strong> ${(obstacle.distance_km * 1000).toFixed(0)}m</p>` : ''}
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent);
+            marker.obstacleData = obstacle;
+            markers.push(marker);
+        }
+        
+        // Load obstacles from server
+        async function loadObstacles() {
+            try {
+                const response = await fetch('/api/obstacles');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Clear existing markers
+                    markers.forEach(m => map.removeLayer(m));
+                    markers = [];
+                    
+                    // Add all obstacles
+                    data.obstacles.forEach(obs => addObstacleMarker(obs));
+                    
+                    updateStats();
+                    showToast(`Loaded ${data.count} obstacles`, 'success');
+                }
+            } catch (error) {
+                console.error('Error loading obstacles:', error);
+                showToast('Error loading obstacles', 'danger');
+            }
+        }
+        
+        // Update statistics
+        async function updateStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('total-obstacles').textContent = data.total_obstacles;
+                    document.getElementById('active-users').textContent = data.active_users;
+                }
+            } catch (error) {
+                console.error('Error updating stats:', error);
+            }
+        }
+        
+        // Update connection status
+        function updateStatus(connected) {
+            const statusEl = document.getElementById('status');
+            const statusText = document.getElementById('status-text');
+            
+            if (connected) {
+                statusEl.className = 'status connected';
+                statusText.textContent = 'Connected';
+            } else {
+                statusEl.className = 'status disconnected';
+                statusText.textContent = 'Disconnected';
+            }
+        }
+        
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            
+            setTimeout(() => {
+                toast.className = 'toast';
+            }, 3000);
+        }
+        
+        // Center map on user
+        function centerOnUser() {
+            if (userMarker) {
+                map.setView(userMarker.getLatLng(), 16);
+                userMarker.openPopup();
+            } else {
+                showToast('Location not available', 'warning');
+            }
+        }
+        
+        // Refresh obstacles
+        function refreshObstacles() {
+            loadObstacles();
+        }
+        
+        // Filter obstacles
+        function applyFilters() {
+            const filters = {
+                pothole: document.getElementById('filter-pothole').checked,
+                crack: document.getElementById('filter-crack').checked,
+                person: document.getElementById('filter-person').checked,
+                obstacle: document.getElementById('filter-obstacle').checked
+            };
+            
+            markers.forEach(marker => {
+                const type = marker.obstacleData.type.toLowerCase();
+                const show = filters[type] !== undefined ? filters[type] : filters.obstacle;
+                
+                if (show) {
+                    marker.addTo(map);
+                } else {
+                    map.removeLayer(marker);
+                }
+            });
+        }
+        
+        // Add filter event listeners
+        ['filter-pothole', 'filter-crack', 'filter-person', 'filter-obstacle'].forEach(id => {
+            document.getElementById(id).addEventListener('change', applyFilters);
+        });
+        
+        // Initialize on page load
+        window.onload = function() {
+            initializeWebSocket();
+            loadObstacles();
+            updateStats();
+            
+            // Update stats every 10 seconds
+            setInterval(updateStats, 10000);
+        };
+    </script>
+</body>
+</html>
