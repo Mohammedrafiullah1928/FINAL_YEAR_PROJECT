@@ -100,7 +100,12 @@ db = ObstacleDatabase()
 
 @app.route('/')
 def index():
-    """Main map interface"""
+    """Main map interface with live camera"""
+    return render_template('map_live.html')
+
+@app.route('/map')
+def map_view():
+    """Original map interface"""
     return render_template('map.html')
 
 @app.route('/dashboard')

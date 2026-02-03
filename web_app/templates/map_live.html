@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Pedestrian Navigation - Real-time Map & Camera</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        
+        /* Main Layout */
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            grid-template-rows: 100vh;
+            height: 100vh;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Right Panel */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            background: #f5f5f5;
+            overflow-y: auto;
+        }
+        
+        /* Camera Feed */
+        .camera-section {
+            background: #000;
+            position: relative;
+            min-height: 300px;
+        }
+        
+        #camera-feed {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .camera-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        
+        .camera-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.offline {
+            background: #f44336;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            background: white;
+            padding: 20px;
+        }
+        
+        .control-panel h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .status-box {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .status-box.connected {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        .status-box.disconnected {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .stat:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: #666;
+        }
+        
+        .stat-value {
+            font-weight: bold;
+            color: #2196F3;
+        }
+        
+        /* Location Info */
+        .location-info {
+            background: white;
+            padding: 15px;
+            margin-top: 2px;
+        }
+        
+        .location-info h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #555;
+        }
+        
+        .location-detail {
+            font-size: 12px;
+            color: #666;
+            padding: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .location-detail i {
+            margin-right: 8px;
+            color: #2196F3;
+        }
+        
+        /* Buttons */
+        .btn {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #1976D2;
+        }
+        
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #45a049;
+        }
+        
+        .btn-warning {
+            background: #ff9800;
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #f57c00;
+        }
+        
+        /* Recent Detections */
+        .detections-section {
+            background: white;
+            padding: 15px;
+            margin-top: 2px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .detections-section h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #555;
+        }
+        
+        .detection-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 3px solid #2196F3;
+            background: #f5f5f5;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .detection-item.pothole {
+            border-left-color: #f44336;
+        }
+        
+        .detection-item.crack {
+            border-left-color: #ff9800;
+        }
+        
+        .detection-item.person {
+            border-left-color: #2196F3;
+        }
+        
+        .detection-time {
+            color: #999;
+            font-size: 11px;
+            margin-top: 3px;
+        }
+        
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #323232;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            display: none;
+            animation: slideDown 0.3s ease-out;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+        
+        .toast.show {
+            display: block;
+        }
+        
+        .toast.success {
+            background: #4CAF50;
+        }
+        
+        .toast.warning {
+            background: #ff9800;
+        }
+        
+        .toast.danger {
+            background: #f44336;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 50vh 50vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Map -->
+        <div id="map"></div>
+        
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <!-- Camera Feed -->
+            <div class="camera-section">
+                <video id="camera-feed" autoplay playsinline></video>
+                <canvas id="detection-canvas" style="display:none;"></canvas>
+                <div class="camera-overlay">
+                    <i class="fas fa-video"></i> <span id="camera-label">Initializing...</span>
+                </div>
+                <div class="camera-status">
+                    <span class="status-dot" id="camera-status-dot"></span>
+                </div>
+            </div>
+            
+            <!-- Control Panel -->
+            <div class="control-panel">
+                <h2><i class="fas fa-sliders-h"></i> Control Panel</h2>
+                
+                <div id="status" class="status-box disconnected">
+                    <span class="status-dot"></span>
+                    <span id="status-text" style="margin-left: 10px;">Connecting...</span>
+                </div>
+                
+                <div class="stat">
+                    <span class="stat-label">Total Obstacles:</span>
+                    <span class="stat-value" id="total-obstacles">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Nearby (500m):</span>
+                    <span class="stat-value" id="nearby-obstacles">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Active Users:</span>
+                    <span class="stat-value" id="active-users">0</span>
+                </div>
+                
+                <button class="btn btn-primary" onclick="startCamera()">
+                    <i class="fas fa-video"></i> Start Camera
+                </button>
+                <button class="btn btn-warning" onclick="stopCamera()">
+                    <i class="fas fa-stop"></i> Stop Camera
+                </button>
+                <button class="btn btn-success" onclick="refreshLocation()">
+                    <i class="fas fa-sync-alt"></i> Refresh Location
+                </button>
+            </div>
+            
+            <!-- Location Info -->
+            <div class="location-info">
+                <h3><i class="fas fa-map-marker-alt"></i> Your Location</h3>
+                <div class="location-detail">
+                    <i class="fas fa-compass"></i>
+                    <span id="location-coords">Requesting location...</span>
+                </div>
+                <div class="location-detail">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span id="location-accuracy">Accuracy: --</span>
+                </div>
+            </div>
+            
+            <!-- Recent Detections -->
+            <div class="detections-section">
+                <h3><i class="fas fa-list"></i> Recent Detections</h3>
+                <div id="detections-list">
+                    <p style="color: #999; text-align: center; padding: 20px;">No detections yet</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+    
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    
+    <script>
+        // Global variables
+        let map, socket, userMarker, userLocation;
+        let markers = [];
+        let videoStream = null;
+        let model = null;
+        let detectionInterval = null;
+        let recentDetections = [];
+        
+        // Initialize map
+        map = L.map('map').setView([17.385044, 78.486671], 13);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // Initialize WebSocket
+        function initializeWebSocket() {
+            socket = io.connect('http://' + document.domain + ':' + location.port);
+            
+            socket.on('connect', function() {
+                updateStatus(true);
+                showToast('Connected to server', 'success');
+            });
+            
+            socket.on('disconnect', function() {
+                updateStatus(false);
+                showToast('Disconnected from server', 'danger');
+            });
+            
+            socket.on('new_obstacle', function(obstacle) {
+                addObstacleMarker(obstacle);
+                addDetectionToList(obstacle);
+                showToast(`New ${obstacle.type} detected!`, 'warning');
+                updateStats();
+            });
+            
+            socket.on('nearby_obstacles', function(data) {
+                document.getElementById('nearby-obstacles').textContent = data.count;
+            });
+        }
+        
+        // Start camera and detection
+        async function startCamera() {
+            try {
+                document.getElementById('camera-label').textContent = 'Starting camera...';
+                
+                // Request camera access
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'environment'
+                    }
+                });
+                
+                const video = document.getElementById('camera-feed');
+                video.srcObject = videoStream;
+                
+                document.getElementById('camera-label').textContent = 'Camera Active';
+                document.getElementById('camera-status-dot').classList.remove('offline');
+                showToast('Camera started successfully', 'success');
+                
+                // Load COCO-SSD model
+                if (!model) {
+                    showToast('Loading AI model...', 'success');
+                    model = await cocoSsd.load();
+                    showToast('AI model loaded!', 'success');
+                }
+                
+                // Start detection loop
+                startDetection();
+                
+            } catch (error) {
+                console.error('Camera error:', error);
+                document.getElementById('camera-label').textContent = 'Camera Error';
+                document.getElementById('camera-status-dot').classList.add('offline');
+                showToast('Camera access denied. Please grant permission.', 'danger');
+            }
+        }
+        
+        // Stop camera
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+                document.getElementById('camera-feed').srcObject = null;
+                document.getElementById('camera-label').textContent = 'Camera Stopped';
+                document.getElementById('camera-status-dot').classList.add('offline');
+                
+                if (detectionInterval) {
+                    clearInterval(detectionInterval);
+                    detectionInterval = null;
+                }
+                
+                showToast('Camera stopped', 'success');
+            }
+        }
+        
+        // Start detection loop
+        function startDetection() {
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+            }
+            
+            detectionInterval = setInterval(async () => {
+                if (model && videoStream) {
+                    const video = document.getElementById('camera-feed');
+                    const predictions = await model.detect(video);
+                    
+                    // Process detections
+                    for (const prediction of predictions) {
+                        if (prediction.score > 0.6 && userLocation) {
+                            reportDetection(prediction);
+                        }
+                    }
+                }
+            }, 2000); // Detect every 2 seconds
+        }
+        
+        // Report detection to server
+        function reportDetection(prediction) {
+            if (!userLocation) return;
+            
+            // Map COCO classes to our obstacle types
+            let type = prediction.class.toLowerCase();
+            let severity = 'medium';
+            
+            if (type === 'person') {
+                severity = 'critical';
+            }
+            
+            const detection = {
+                type: type,
+                confidence: prediction.score,
+                latitude: userLocation.latitude + (Math.random() - 0.5) * 0.0001,
+                longitude: userLocation.longitude + (Math.random() - 0.5) * 0.0001,
+                severity: severity,
+                description: `${type} detected with ${(prediction.score * 100).toFixed(1)}% confidence`,
+                user_id: 'web_browser'
+            };
+            
+            // Send to server
+            if (socket && socket.connected) {
+                socket.emit('report_detection', detection);
+            }
+        }
+        
+        // Get and watch user location
+        function startLocationTracking() {
+            if ('geolocation' in navigator) {
+                // Request high accuracy location
+                const options = {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                };
+                
+                // Get current position
+                navigator.geolocation.getCurrentPosition(
+                    updateUserLocation,
+                    handleLocationError,
+                    options
+                );
+                
+                // Watch position for continuous updates
+                navigator.geolocation.watchPosition(
+                    updateUserLocation,
+                    handleLocationError,
+                    options
+                );
+            } else {
+                showToast('Geolocation not supported', 'danger');
+                document.getElementById('location-coords').textContent = 'Not supported';
+            }
+        }
+        
+        // Update user location
+        function updateUserLocation(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+            
+            userLocation = {latitude: lat, longitude: lon};
+            
+            // Update location display
+            document.getElementById('location-coords').textContent = 
+                `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+            document.getElementById('location-accuracy').textContent = 
+                `Accuracy: ±${accuracy.toFixed(0)}m`;
+            
+            // Update or create marker
+            if (userMarker) {
+                userMarker.setLatLng([lat, lon]);
+            } else {
+                userMarker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        html: '<i class="fas fa-street-view" style="color: #4CAF50; font-size: 32px;"></i>',
+                        className: 'user-marker',
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 32]
+                    })
+                }).addTo(map);
+                
+                userMarker.bindPopup('<b>Your Location</b>').openPopup();
+                map.setView([lat, lon], 16);
+                showToast('Location acquired!', 'success');
+            }
+            
+            // Send to server
+            if (socket && socket.connected) {
+                socket.emit('update_location', {latitude: lat, longitude: lon});
+            }
+        }
+        
+        // Handle location errors
+        function handleLocationError(error) {
+            let message = 'Location error';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = 'Location permission denied. Please enable location access.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = 'Location information unavailable';
+                    break;
+                case error.TIMEOUT:
+                    message = 'Location request timeout';
+                    break;
+            }
+            
+            showToast(message, 'danger');
+            document.getElementById('location-coords').textContent = 'Error getting location';
+        }
+        
+        // Refresh location
+        function refreshLocation() {
+            showToast('Refreshing location...', 'success');
+            startLocationTracking();
+        }
+        
+        // Add obstacle marker
+        function addObstacleMarker(obstacle) {
+            const iconMap = {
+                'pothole': {icon: 'fa-circle', color: '#f44336'},
+                'crack': {icon: 'fa-circle', color: '#ff9800'},
+                'person': {icon: 'fa-circle', color: '#2196F3'},
+                'obstacle': {icon: 'fa-circle', color: '#9c27b0'}
+            };
+            
+            const obstacleType = obstacle.type.toLowerCase();
+            const iconConfig = iconMap[obstacleType] || iconMap['obstacle'];
+            
+            const marker = L.marker([obstacle.latitude, obstacle.longitude], {
+                icon: L.divIcon({
+                    html: `<i class="fas ${iconConfig.icon}" style="color: ${iconConfig.color}; font-size: 20px;"></i>`,
+                    className: 'obstacle-marker',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                })
+            }).addTo(map);
+            
+            const popupContent = `
+                <div style="min-width: 200px;">
+                    <h3 style="margin-bottom: 10px; color: ${iconConfig.color};">
+                        ${obstacle.type.toUpperCase()}
+                    </h3>
+                    <p><strong>Confidence:</strong> ${(obstacle.confidence * 100).toFixed(1)}%</p>
+                    <p><strong>Severity:</strong> ${obstacle.severity}</p>
+                    <p><strong>Location:</strong> ${obstacle.latitude.toFixed(6)}, ${obstacle.longitude.toFixed(6)}</p>
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent);
+            marker.obstacleData = obstacle;
+            markers.push(marker);
+        }
+        
+        // Add detection to list
+        function addDetectionToList(obstacle) {
+            recentDetections.unshift(obstacle);
+            if (recentDetections.length > 10) {
+                recentDetections.pop();
+            }
+            
+            const listEl = document.getElementById('detections-list');
+            listEl.innerHTML = recentDetections.map(det => `
+                <div class="detection-item ${det.type}">
+                    <strong>${det.type.toUpperCase()}</strong>
+                    <div class="detection-time">${new Date().toLocaleTimeString()}</div>
+                    <div style="font-size: 11px; margin-top: 5px;">
+                        Confidence: ${(det.confidence * 100).toFixed(1)}%
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Load obstacles
+        async function loadObstacles() {
+            try {
+                const response = await fetch('/api/obstacles');
+                const data = await response.json();
+                
+                if (data.success) {
+                    markers.forEach(m => map.removeLayer(m));
+                    markers = [];
+                    
+                    data.obstacles.forEach(obs => addObstacleMarker(obs));
+                    updateStats();
+                }
+            } catch (error) {
+                console.error('Error loading obstacles:', error);
+            }
+        }
+        
+        // Update stats
+        async function updateStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('total-obstacles').textContent = data.total_obstacles;
+                    document.getElementById('active-users').textContent = data.active_users;
+                }
+            } catch (error) {
+                console.error('Error updating stats:', error);
+            }
+        }
+        
+        // Update status
+        function updateStatus(connected) {
+            const statusEl = document.getElementById('status');
+            const statusText = document.getElementById('status-text');
+            
+            if (connected) {
+                statusEl.className = 'status-box connected';
+                statusText.textContent = 'Connected';
+            } else {
+                statusEl.className = 'status-box disconnected';
+                statusText.textContent = 'Disconnected';
+            }
+        }
+        
+        // Show toast
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            
+            setTimeout(() => {
+                toast.className = 'toast';
+            }, 3000);
+        }
+        
+        // Initialize on load
+        window.onload = function() {
+            initializeWebSocket();
+            startLocationTracking();
+            loadObstacles();
+            updateStats();
+            
+            setInterval(updateStats, 10000);
+        };
+    </script>
+</body>
+</html>
