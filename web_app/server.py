@@ -113,6 +113,11 @@ def dashboard():
     """Analytics dashboard"""
     return render_template('dashboard.html')
 
+@app.route('/test-permissions')
+def test_permissions():
+    """Test camera and location permissions"""
+    return render_template('test_permissions.html')
+
 @app.route('/api/obstacles', methods=['GET'])
 def get_obstacles():
     """API endpoint to get all obstacles"""

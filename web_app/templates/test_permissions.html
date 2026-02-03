@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera & Location Permission Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 2px solid #eee;
+            border-radius: 10px;
+        }
+        
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        
+        .status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status i {
+            margin-right: 10px;
+            font-size: 20px;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        #video-preview {
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .info-box {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #2196F3;
+        }
+        
+        .info-box h3 {
+            color: #1976D2;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .info-box p {
+            color: #555;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+        
+        .error-details {
+            background: #fff5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #f44336;
+            display: none;
+        }
+        
+        .error-details h3 {
+            color: #c62828;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .error-details pre {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        
+        .instructions {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+        }
+        
+        .instructions li {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+        
+        .browser-info {
+            text-align: center;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 Camera & Location Permission Test</h1>
+        <p class="subtitle">Diagnose and fix permission issues</p>
+        
+        <!-- Browser Info -->
+        <div class="browser-info">
+            <strong>Browser:</strong> <span id="browser-name">Unknown</span> | 
+            <strong>Platform:</strong> <span id="platform-name">Unknown</span> | 
+            <strong>Protocol:</strong> <span id="protocol">Unknown</span>
+        </div>
+        
+        <!-- Location Test -->
+        <div class="section">
+            <h2><i class="fas fa-map-marker-alt"></i> Location Permission Test</h2>
+            <div id="location-status" class="status pending">
+                <i class="fas fa-clock"></i>
+                <span>Not tested yet</span>
+            </div>
+            <div id="location-details"></div>
+            <button class="btn btn-primary" onclick="testLocation()">
+                <i class="fas fa-location-arrow"></i> Test Location Access
+            </button>
+        </div>
+        
+        <!-- Camera Test -->
+        <div class="section">
+            <h2><i class="fas fa-video"></i> Camera Permission Test</h2>
+            <div id="camera-status" class="status pending">
+                <i class="fas fa-clock"></i>
+                <span>Not tested yet</span>
+            </div>
+            <div id="camera-details"></div>
+            <button class="btn btn-primary" onclick="testCamera()">
+                <i class="fas fa-camera"></i> Test Camera Access
+            </button>
+            <video id="video-preview" autoplay playsinline></video>
+        </div>
+        
+        <!-- Error Details -->
+        <div id="error-details" class="error-details">
+            <h3><i class="fas fa-exclamation-triangle"></i> Error Details</h3>
+            <pre id="error-message"></pre>
+        </div>
+        
+        <!-- Solutions -->
+        <div class="instructions">
+            <h2 style="margin-bottom: 15px;">🔧 How to Fix Camera Access Denied</h2>
+            
+            <div class="info-box">
+                <h3>Method 1: Browser Permissions (Easiest)</h3>
+                <ol>
+                    <li>Look for a <strong>🔒 lock icon</strong> or <strong>camera icon</strong> in the address bar</li>
+                    <li>Click it and select <strong>"Allow"</strong> for both Camera and Location</li>
+                    <li>Refresh this page and click the test buttons again</li>
+                </ol>
+            </div>
+            
+            <div class="info-box">
+                <h3>Method 2: Windows Privacy Settings</h3>
+                <ol>
+                    <li>Press <strong>Windows + I</strong> to open Settings</li>
+                    <li>Go to <strong>Privacy & Security</strong> → <strong>Camera</strong></li>
+                    <li>Turn ON: <strong>"Camera access"</strong></li>
+                    <li>Turn ON: <strong>"Let apps access your camera"</strong></li>
+                    <li>Turn ON: <strong>"Let desktop apps access your camera"</strong></li>
+                    <li>Do the same for <strong>Location</strong> section</li>
+                    <li>Restart your browser</li>
+                </ol>
+            </div>
+            
+            <div class="info-box">
+                <h3>Method 3: Clear Browser Site Data</h3>
+                <ol>
+                    <li>In browser address bar, click the <strong>🔒 icon</strong></li>
+                    <li>Click <strong>"Site settings"</strong> or <strong>"Permissions"</strong></li>
+                    <li>Find Camera and Location, set both to <strong>"Allow"</strong></li>
+                    <li>Or click <strong>"Reset permissions"</strong></li>
+                    <li>Refresh and try again</li>
+                </ol>
+            </div>
+            
+            <div class="info-box">
+                <h3>Method 4: Use External Browser</h3>
+                <p>VS Code's Simple Browser has limited permissions. Try:</p>
+                <ol>
+                    <li>Open <strong>Chrome</strong> or <strong>Edge</strong> externally</li>
+                    <li>Navigate to: <strong>http://localhost:5000</strong></li>
+                    <li>Grant permissions when prompted</li>
+                </ol>
+                <button class="btn btn-success" onclick="openExternal()">
+                    <i class="fas fa-external-link-alt"></i> Open in External Browser
+                </button>
+            </div>
+        </div>
+        
+        <!-- Continue Button -->
+        <button class="btn btn-success" onclick="goToMain()" style="margin-top: 20px;">
+            <i class="fas fa-arrow-right"></i> Go to Main Application
+        </button>
+    </div>
+    
+    <script>
+        // Detect browser and platform
+        window.onload = function() {
+            const ua = navigator.userAgent;
+            let browserName = 'Unknown';
+            
+            if (ua.includes('Chrome')) browserName = 'Chrome';
+            else if (ua.includes('Firefox')) browserName = 'Firefox';
+            else if (ua.includes('Safari')) browserName = 'Safari';
+            else if (ua.includes('Edge')) browserName = 'Edge';
+            else if (ua.includes('Opera')) browserName = 'Opera';
+            
+            document.getElementById('browser-name').textContent = browserName;
+            document.getElementById('platform-name').textContent = navigator.platform;
+            document.getElementById('protocol').textContent = window.location.protocol;
+        };
+        
+        // Test location access
+        async function testLocation() {
+            const statusEl = document.getElementById('location-status');
+            const detailsEl = document.getElementById('location-details');
+            
+            statusEl.className = 'status pending';
+            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Testing location access...</span>';
+            detailsEl.innerHTML = '';
+            
+            if (!('geolocation' in navigator)) {
+                statusEl.className = 'status error';
+                statusEl.innerHTML = '<i class="fas fa-times"></i><span>Geolocation not supported by browser</span>';
+                return;
+            }
+            
+            try {
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(
+                        resolve,
+                        reject,
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
+                        }
+                    );
+                });
+                
+                statusEl.className = 'status success';
+                statusEl.innerHTML = '<i class="fas fa-check"></i><span>Location access granted! ✅</span>';
+                
+                detailsEl.innerHTML = `
+                    <div class="info-box">
+                        <h3>📍 Location Information</h3>
+                        <p><strong>Latitude:</strong> ${position.coords.latitude.toFixed(6)}</p>
+                        <p><strong>Longitude:</strong> ${position.coords.longitude.toFixed(6)}</p>
+                        <p><strong>Accuracy:</strong> ±${position.coords.accuracy.toFixed(0)}m</p>
+                        <p style="color: #28a745; margin-top: 10px;">✅ Location is working correctly!</p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.innerHTML = '<i class="fas fa-times"></i><span>Location access denied ❌</span>';
+                
+                let errorMsg = '';
+                switch(error.code) {
+                    case 1:
+                        errorMsg = 'Permission denied by user. Click "Allow" when prompted.';
+                        break;
+                    case 2:
+                        errorMsg = 'Position unavailable. Check GPS/WiFi settings.';
+                        break;
+                    case 3:
+                        errorMsg = 'Request timeout. Try again.';
+                        break;
+                    default:
+                        errorMsg = error.message;
+                }
+                
+                showError(errorMsg);
+                detailsEl.innerHTML = `
+                    <div class="error-details" style="display: block;">
+                        <p style="color: #c62828;"><strong>Error:</strong> ${errorMsg}</p>
+                        <p style="margin-top: 10px;">Please follow the instructions above to fix this.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Test camera access
+        async function testCamera() {
+            const statusEl = document.getElementById('camera-status');
+            const detailsEl = document.getElementById('camera-details');
+            const videoEl = document.getElementById('video-preview');
+            
+            statusEl.className = 'status pending';
+            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Testing camera access...</span>';
+            detailsEl.innerHTML = '';
+            videoEl.style.display = 'none';
+            
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                statusEl.className = 'status error';
+                statusEl.innerHTML = '<i class="fas fa-times"></i><span>Camera API not supported</span>';
+                return;
+            }
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                });
+                
+                statusEl.className = 'status success';
+                statusEl.innerHTML = '<i class="fas fa-check"></i><span>Camera access granted! ✅</span>';
+                
+                videoEl.srcObject = stream;
+                videoEl.style.display = 'block';
+                
+                const track = stream.getVideoTracks()[0];
+                const settings = track.getSettings();
+                
+                detailsEl.innerHTML = `
+                    <div class="info-box">
+                        <h3>📹 Camera Information</h3>
+                        <p><strong>Device:</strong> ${track.label || 'Default Camera'}</p>
+                        <p><strong>Resolution:</strong> ${settings.width}x${settings.height}</p>
+                        <p><strong>Frame Rate:</strong> ${settings.frameRate || 'Unknown'} FPS</p>
+                        <p style="color: #28a745; margin-top: 10px;">✅ Camera is working correctly!</p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.innerHTML = '<i class="fas fa-times"></i><span>Camera access denied ❌</span>';
+                
+                let errorMsg = error.message;
+                let solution = '';
+                
+                if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    errorMsg = 'Camera permission denied by user';
+                    solution = 'Click the lock icon (🔒) in address bar and allow camera access.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMsg = 'No camera found on this device';
+                    solution = 'Check if your camera is connected and enabled.';
+                } else if (error.name === 'NotReadableError') {
+                    errorMsg = 'Camera is already in use by another application';
+                    solution = 'Close Teams, Zoom, Skype, or other apps using the camera.';
+                }
+                
+                showError(errorMsg + '\n\nSolution: ' + solution);
+                detailsEl.innerHTML = `
+                    <div class="error-details" style="display: block;">
+                        <p style="color: #c62828;"><strong>Error:</strong> ${errorMsg}</p>
+                        <p style="margin-top: 10px;"><strong>Solution:</strong> ${solution}</p>
+                        <p style="margin-top: 10px;">Follow the instructions above to fix this issue.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Show error details
+        function showError(message) {
+            const errorDetailsEl = document.getElementById('error-details');
+            const errorMessageEl = document.getElementById('error-message');
+            
+            errorDetailsEl.style.display = 'block';
+            errorMessageEl.textContent = message;
+        }
+        
+        // Open in external browser
+        function openExternal() {
+            window.open('http://localhost:5000', '_blank');
+        }
+        
+        // Go to main application
+        function goToMain() {
+            window.location.href = '/';
+        }
+    </script>
+</body>
+</html>

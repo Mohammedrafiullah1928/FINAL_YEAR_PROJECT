@@ -320,6 +320,8 @@
                 <canvas id="detection-canvas" style="display:none;"></canvas>
                 <div class="camera-overlay">
                     <i class="fas fa-video"></i> <span id="camera-label">Initializing...</span>
+                    <br>
+                    <small id="detection-info" style="color: #4CAF50; font-weight: bold;"></small>
                 </div>
                 <div class="camera-status">
                     <span class="status-dot" id="camera-status-dot"></span>
@@ -357,6 +359,28 @@
                 <button class="btn btn-success" onclick="refreshLocation()">
                     <i class="fas fa-sync-alt"></i> Refresh Location
                 </button>
+                
+                <hr style="margin: 15px 0;">
+                
+                <h3 style="font-size: 14px; margin-bottom: 10px;">
+                    <i class="fas fa-cog"></i> Detection Settings
+                </h3>
+                <div class="stat">
+                    <label>
+                        <input type="checkbox" id="ignore-people" checked onchange="updateIgnoreList()">
+                        Ignore People (Recommended)
+                    </label>
+                </div>
+                <div class="stat">
+                    <label>
+                        <input type="checkbox" id="audio-warnings" checked>
+                        Audio Warnings
+                    </label>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Confidence Threshold:</span>
+                    <span class="stat-value" id="confidence-display">75%</span>
+                </div>
             </div>
             
             <!-- Location Info -->
@@ -399,6 +423,23 @@
         let model = null;
         let detectionInterval = null;
         let recentDetections = [];
+        let detectedObjects = new Map(); // Track detected objects to prevent duplicates
+        let lastWarningTime = 0; // Cooldown for audio warnings
+        
+        // Priority obstacles for dashboard camera (road hazards)
+        const PRIORITY_OBJECTS = [
+            'car', 'truck', 'bus', 'motorcycle', 'bicycle',
+            'traffic light', 'fire hydrant', 'stop sign', 
+            'parking meter', 'bench', 'pothole', 'crack'
+        ];
+        
+        // Objects to ignore (reduce noise)
+        const IGNORE_OBJECTS = ['person', 'backpack', 'handbag', 'umbrella', 'tie', 'suitcase'];
+        
+        // Distance thresholds (in meters)
+        const DISTANCE_CRITICAL = 3;  // < 3m = critical
+        const DISTANCE_WARNING = 10;  // < 10m = warning
+        const DUPLICATE_THRESHOLD = 30000; // 30 seconds before same object can be reported again
         
         // Initialize map
         map = L.map('map').setView([17.385044, 78.486671], 13);
@@ -502,14 +543,138 @@
                     const video = document.getElementById('camera-feed');
                     const predictions = await model.detect(video);
                     
-                    // Process detections
+                    // Update detection info overlay
+                    const detectionInfo = document.getElementById('detection-info');
+                    if (predictions.length === 0) {
+                        detectionInfo.textContent = '✓ Scanning... No obstacles';
+                        detectionInfo.style.color = '#4CAF50';
+                    }
+                    
+                    // Process detections with higher accuracy and filtering
+                    let detectedCount = 0;
                     for (const prediction of predictions) {
-                        if (prediction.score > 0.6 && userLocation) {
-                            reportDetection(prediction);
+                        const objectType = prediction.class.toLowerCase();
+                        const confidence = (prediction.score * 100).toFixed(0);
+                        
+                        // Show all detections in overlay (for debugging)
+                        if (prediction.score > 0.5) {
+                            detectionInfo.textContent = `Detected: ${objectType} (${confidence}%)`;
+                            detectionInfo.style.color = IGNORE_OBJECTS.includes(objectType) ? '#FFA500' : '#FF5252';
+                        }
+                        
+                        // Higher confidence threshold (75%) for reporting
+                        if (prediction.score > 0.75 && userLocation) {
+                            // Skip ignored objects (like people - too many false positives)
+                            if (IGNORE_OBJECTS.includes(objectType)) {
+                                console.log(`⊘ Ignoring: ${objectType} (${confidence}% confidence)`);
+                                continue;
+                            }
+                            
+                            // Check if this is a duplicate detection
+                            if (!isDuplicateDetection(objectType, prediction.score)) {
+                                detectedCount++;
+                                reportDetection(prediction);
+                            }
                         }
                     }
+                    
+                    if (detectedCount > 0) {
+                        detectionInfo.textContent = `⚠️ ${detectedCount} obstacle(s) reported`;
+                        detectionInfo.style.color = '#FF5252';
+                    }
                 }
-            }, 2000); // Detect every 2 seconds
+            }, 3000); // Detect every 3 seconds (reduced frequency)
+        }
+        
+        // Check if detection is duplicate
+        function isDuplicateDetection(objectType, confidence) {
+            const key = objectType;
+            const now = Date.now();
+            
+            if (detectedObjects.has(key)) {
+                const lastDetection = detectedObjects.get(key);
+                const timeDiff = now - lastDetection.timestamp;
+                
+                // If detected same object within threshold time, it's a duplicate
+                if (timeDiff < DUPLICATE_THRESHOLD) {
+                    console.log(`Skipping duplicate: ${objectType} (last seen ${(timeDiff/1000).toFixed(1)}s ago)`);
+                    return true;
+                }
+            }
+            
+            // Store this detection
+            detectedObjects.set(key, {
+                timestamp: now,
+                confidence: confidence
+            });
+            
+            return false;
+        }
+        
+        // Calculate distance between two points (Haversine formula)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Earth radius in meters
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δφ = (lat2 - lat1) * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+            
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            
+            return R * c; // Distance in meters
+        }
+        
+        // Show distance-based warning
+        function showDistanceWarning(objectType, distance) {
+            const now = Date.now();
+            
+            // Cooldown to prevent spam (5 seconds)
+            if (now - lastWarningTime < 5000) {
+                return;
+            }
+            
+            lastWarningTime = now;
+            
+            if (distance < DISTANCE_CRITICAL) {
+                showToast(`⚠️ CRITICAL: ${objectType} detected ${distance.toFixed(1)}m ahead!`, 'danger');
+                playWarningSound('critical');
+            } else if (distance < DISTANCE_WARNING) {
+                showToast(`⚠️ WARNING: ${objectType} detected ${distance.toFixed(1)}m ahead`, 'warning');
+                playWarningSound('warning');
+            }
+        }
+        
+        // Play warning sound
+        function playWarningSound(level) {
+            // Check if audio warnings are enabled
+            const audioEnabled = document.getElementById('audio-warnings').checked;
+            if (!audioEnabled) {
+                return;
+            }
+            
+            // Create audio context for beep
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = level === 'critical' ? 880 : 440; // Higher pitch for critical
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (e) {
+                console.log('Audio not available:', e);
+            }
         }
         
         // Report detection to server
@@ -520,19 +685,41 @@
             let type = prediction.class.toLowerCase();
             let severity = 'medium';
             
-            if (type === 'person') {
-                severity = 'critical';
+            // Determine severity based on object type
+            if (PRIORITY_OBJECTS.includes(type)) {
+                severity = 'high';
             }
+            
+            // Add slight GPS offset (simulating forward detection)
+            // In real ESP32-CAM, this would be actual obstacle location
+            const obstacleLatitude = userLocation.latitude + (Math.random() - 0.5) * 0.0001;
+            const obstacleLongitude = userLocation.longitude + (Math.random() - 0.5) * 0.0001;
+            
+            // Calculate distance to obstacle
+            const distance = calculateDistance(
+                userLocation.latitude, 
+                userLocation.longitude,
+                obstacleLatitude,
+                obstacleLongitude
+            );
+            
+            // Show distance warning
+            showDistanceWarning(type, distance);
             
             const detection = {
                 type: type,
                 confidence: prediction.score,
-                latitude: userLocation.latitude + (Math.random() - 0.5) * 0.0001,
-                longitude: userLocation.longitude + (Math.random() - 0.5) * 0.0001,
+                latitude: obstacleLatitude,
+                longitude: obstacleLongitude,
                 severity: severity,
-                description: `${type} detected with ${(prediction.score * 100).toFixed(1)}% confidence`,
-                user_id: 'web_browser'
+                distance: distance.toFixed(1),
+                description: `${type} detected at ${distance.toFixed(1)}m with ${(prediction.score * 100).toFixed(1)}% confidence`,
+                user_id: 'web_browser',
+                timestamp: new Date().toISOString()
             };
+            
+            // Log detection
+            console.log(`✓ Detected: ${type} (${(prediction.score * 100).toFixed(1)}% confidence, ${distance.toFixed(1)}m away)`);
             
             // Send to server
             if (socket && socket.connected) {
@@ -734,6 +921,24 @@
                 statusEl.className = 'status-box disconnected';
                 statusText.textContent = 'Disconnected';
             }
+        }
+        
+        // Update ignore list based on checkbox
+        function updateIgnoreList() {
+            const ignorePeople = document.getElementById('ignore-people').checked;
+            
+            if (ignorePeople && !IGNORE_OBJECTS.includes('person')) {
+                IGNORE_OBJECTS.push('person');
+                showToast('People will be ignored in detections', 'success');
+            } else if (!ignorePeople) {
+                const index = IGNORE_OBJECTS.indexOf('person');
+                if (index > -1) {
+                    IGNORE_OBJECTS.splice(index, 1);
+                }
+                showToast('People will now be detected', 'warning');
+            }
+            
+            console.log('Updated ignore list:', IGNORE_OBJECTS);
         }
         
         // Show toast
