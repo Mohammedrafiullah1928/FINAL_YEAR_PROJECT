@@ -92,6 +92,91 @@
             50% { opacity: 0.5; }
         }
         
+        /* Live Detection Panel */
+        .detection-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .detection-panel h4 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #4CAF50;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+        
+        .detection-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 8px;
+            margin: 4px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            font-size: 12px;
+            animation: slideIn 0.3s ease-out;
+            transition: opacity 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .detection-item.critical {
+            background: rgba(244, 67, 54, 0.3);
+            border-left: 3px solid #f44336;
+        }
+        
+        .detection-item.warning {
+            background: rgba(255, 152, 0, 0.3);
+            border-left: 3px solid #ff9800;
+        }
+        
+        .detection-item.safe {
+            background: rgba(76, 175, 80, 0.3);
+            border-left: 3px solid #4CAF50;
+        }
+        
+        .detection-name {
+            font-weight: bold;
+            text-transform: capitalize;
+        }
+        
+        .detection-distance {
+            background: rgba(33, 150, 243, 0.3);
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        
+        .detection-confidence {
+            color: #bbb;
+            font-size: 11px;
+        }
+        
+        .no-detections {
+            text-align: center;
+            padding: 10px;
+            color: #4CAF50;
+            font-size: 12px;
+        }
+        
         /* Control Panel */
         .control-panel {
             background: white;
@@ -325,6 +410,16 @@
                 </div>
                 <div class="camera-status">
                     <span class="status-dot" id="camera-status-dot"></span>
+                </div>
+                
+                <!-- Live Detection Panel -->
+                <div class="detection-panel" id="detection-panel">
+                    <h4><i class="fas fa-exclamation-triangle"></i> Live Detections</h4>
+                    <div id="live-detections">
+                        <div class="no-detections">
+                            <i class="fas fa-search"></i> Scanning for obstacles...
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -706,6 +801,9 @@
             // Show distance warning
             showDistanceWarning(type, distance);
             
+            // Add to live detection panel
+            addToLivePanel(type, distance, prediction.score);
+            
             const detection = {
                 type: type,
                 confidence: prediction.score,
@@ -725,6 +823,67 @@
             if (socket && socket.connected) {
                 socket.emit('report_detection', detection);
             }
+        }
+        
+        // Add detection to live panel
+        function addToLivePanel(type, distance, confidence) {
+            const liveDetections = document.getElementById('live-detections');
+            
+            // Remove "no detections" message if present
+            if (liveDetections.innerHTML.includes('no-detections')) {
+                liveDetections.innerHTML = '';
+            }
+            
+            // Determine severity class based on distance
+            let severityClass = 'safe';
+            let icon = '🟢';
+            if (distance < DISTANCE_CRITICAL) {
+                severityClass = 'critical';
+                icon = '🔴';
+            } else if (distance < DISTANCE_WARNING) {
+                severityClass = 'warning';
+                icon = '🟡';
+            }
+            
+            // Create detection item
+            const detectionItem = document.createElement('div');
+            detectionItem.className = `detection-item ${severityClass}`;
+            detectionItem.innerHTML = `
+                <div>
+                    <span class="detection-name">${icon} ${type}</span>
+                    <div class="detection-confidence">${(confidence * 100).toFixed(0)}% confidence</div>
+                </div>
+                <div class="detection-distance">${distance.toFixed(1)}m</div>
+            `;
+            
+            // Add to top of list
+            liveDetections.insertBefore(detectionItem, liveDetections.firstChild);
+            
+            // Keep only last 5 detections
+            while (liveDetections.children.length > 5) {
+                liveDetections.removeChild(liveDetections.lastChild);
+            }
+            
+            // Auto-remove after 10 seconds
+            setTimeout(() => {
+                if (detectionItem.parentNode) {
+                    detectionItem.style.opacity = '0';
+                    setTimeout(() => {
+                        if (detectionItem.parentNode) {
+                            detectionItem.remove();
+                        }
+                        
+                        // If no detections left, show placeholder
+                        if (liveDetections.children.length === 0) {
+                            liveDetections.innerHTML = `
+                                <div class="no-detections">
+                                    <i class="fas fa-check-circle"></i> All clear
+                                </div>
+                            `;
+                        }
+                    }, 300);
+                }
+            }, 10000);
         }
         
         // Get and watch user location
